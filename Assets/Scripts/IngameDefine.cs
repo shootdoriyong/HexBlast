@@ -9,5 +9,5 @@ public static class IngameDefine {
 	public static int maximumHeight = 6;
 	public static int mapRow = 7;
 
-	public static int maxSpecialBlockCount = 5;
+	public static int maxSpecialBlockCount = 7;
 }

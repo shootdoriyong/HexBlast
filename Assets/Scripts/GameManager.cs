@@ -11,6 +11,10 @@ public class GameManager : Singleton<GameManager> {
 	Transform 	cellRoot;
 	Text 		txt_Comment;
 
+	Text 		txt_MissionCount;
+	Text 		txt_MoveCount;
+	Text 		txt_Score;
+
 	GameObject cellPrefab;
 	GameObject blockPrefab;
 
@@ -19,14 +23,22 @@ public class GameManager : Singleton<GameManager> {
 	List<Cell> list_LoopCell = new List<Cell>();
 	List<Cell> list_DealDamageCell = new List<Cell>();
 
-	float moveTime = 0.5f;
+	float moveTime = 0.02f;
 	int specialBlockCount = 0;
 	public bool touchEnable = true;
+
+	int missionCount = 10;
+	int moveCount = 30;
+	int score = 0;
 
 	void Start ()
 	{
 		cellRoot = GameObject.Find ("Canvas/CellRoot").transform;
 		txt_Comment = GameObject.Find ("Canvas/Text").GetComponent<Text> ();
+
+//		txt_MissionCount = GameObject.Find ("Canvas/Text_MissionCount").GetComponent<Text> ();
+//		txt_MoveCount = GameObject.Find ("Canvas/Text_MoveCount").GetComponent<Text> ();
+//		txt_Score = GameObject.Find ("Canvas/Text_Score").GetComponent<Text> ();
 
 		cellPrefab = Resources.Load<GameObject>("Prefabs/Cell");
 		blockPrefab = Resources.Load<GameObject>("Prefabs/Block");
@@ -106,7 +118,7 @@ public class GameManager : Singleton<GameManager> {
 		}
 
 		int rightRow = mapRow / 2;
-		for(int i = rightRow; i<mapHeight; i++)
+		for(int i = mapHeight-1; i>=rightRow; i--)
 		{
 			int startRight = mapHeight - i;
 			for (int j = 0; j < i; j++) {
@@ -119,6 +131,20 @@ public class GameManager : Singleton<GameManager> {
 				cells.Add (cell);
 			}
 		}
+
+//		for(int i = rightRow; i<mapHeight; i++)
+//		{
+//			int startRight = mapHeight - i;
+//			for (int j = 0; j < i; j++) {
+//				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
+//				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startRight, j, (mapHeight - i) + j);
+//				cell.SetCoordinate (new Vector3(startRight, j, (mapHeight - i) + j));
+//				BlockType getBlockType = GetBlockRandomType ();
+//				cell.InitBlockHP (getBlockType);
+//				cell.SetBlockType (getBlockType);
+//				cells.Add (cell);
+//			}
+//		}
 
 		Debug.Log (" ### Special Block Count = " + specialBlockCount);
 
@@ -405,8 +431,30 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
-	IEnumerator FirstSlideAllDown ()
+	IEnumerator SlideAllOnlyDown ()
 	{
+		//Cell Sort.
+//		cells.Sort ((Cell cellOne, Cell cellTwo) => cellOne.posIdx.x.CompareTo (cellTwo.posIdx.x));
+//		List<int> list_RowHeight = new List<int> ();
+//		int startX = (int)cells [0].posIdx.x;
+//		int inRowNum = 0;
+//		foreach (Cell cell in cells) {
+//			if (startX == (int)cell.posIdx.x) {
+//				inRowNum += 1;
+//			}
+//			else {
+//				list_RowHeight.Add (inRowNum);
+//				inRowNum = 1;
+//				startX = (int)cell.posIdx.x;
+//			}
+//		}
+//		if(inRowNum > 0)
+//			list_RowHeight.Add (inRowNum);
+//
+//		for (int i = 0; i < list_RowHeight.Count; i++) {
+//			Debug.Log ("### Height = " + list_RowHeight [i]);
+//		}
+			
 		List<Cell> list_UpCell = new List<Cell> ();
 		foreach (Cell burstCell in list_BurstCell) {
 			foreach (Cell cell in cells) {
@@ -427,7 +475,7 @@ public class GameManager : Singleton<GameManager> {
 		
 	IEnumerator SlideAllDown ()
 	{
-		cells.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.x.CompareTo (cellOne.posIdx.x));
+		//cells.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.x.CompareTo (cellOne.posIdx.x));
 		foreach (Cell cell in cells) {
 			if (cell.blockType == BlockType.NONE) 
 				continue;
@@ -618,7 +666,7 @@ public class GameManager : Singleton<GameManager> {
 		yield return new WaitForSeconds (0.5f);
 		yield return StartCoroutine (DealDamageBlock ());
 		yield return new WaitForSeconds (0.5f);
-		yield return StartCoroutine (FirstSlideAllDown ());
+		yield return StartCoroutine (SlideAllOnlyDown ());
 		yield return StartCoroutine (SlideAllDown ());
 		yield return StartCoroutine (SupplyNewBlock ());
 

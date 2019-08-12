@@ -27,3 +27,9 @@ public enum TouchState {
 	Enable,
 	Disable
 }
+
+public enum GameState {
+	START,
+	CLEAR,
+	GAMEOVER,
+}
