@@ -8,7 +8,8 @@ using System;
 public class GameManager : Singleton<GameManager> {
 	
 	//Objects.
-	Transform cellRoot;
+	Transform 	cellRoot;
+	Text 		txt_Comment;
 
 	GameObject cellPrefab;
 	GameObject blockPrefab;
@@ -23,6 +24,7 @@ public class GameManager : Singleton<GameManager> {
 	void Start ()
 	{
 		cellRoot = GameObject.Find ("Canvas/CellRoot").transform;
+		txt_Comment = GameObject.Find ("Canvas/Text").GetComponent<Text> ();
 
 		cellPrefab = Resources.Load<GameObject>("Prefabs/Cell");
 		blockPrefab = Resources.Load<GameObject>("Prefabs/Block");
@@ -74,6 +76,8 @@ public class GameManager : Singleton<GameManager> {
 	{
 		Debug.Log ("### InitializeBoard");
 
+		txt_Comment.text = "보드를 생성합니다.";
+
 		int leftRow = mapRow / 2;
 		for(int i = leftRow; i<mapHeight; i++)
 		{
@@ -111,6 +115,7 @@ public class GameManager : Singleton<GameManager> {
 		Debug.Log (" ### Special Block Count = " + specialBlockCount);
 
 		if (ExistMatchingBlock () == true) {
+			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 섞어줍니다.";
 			ShuffleBoard (mapHeight, mapRow);
 		}
 	}
@@ -138,11 +143,6 @@ public class GameManager : Singleton<GameManager> {
 			specialBlockCount += 1;
 
 		return blockType;
-	}
-
-	void GetMatchingBlock ()
-	{
-		
 	}
 
 	bool ExistMatchingBlock ()
@@ -343,7 +343,6 @@ public class GameManager : Singleton<GameManager> {
 			targetCell = GetTenDirectionCell (srcCell);
 			break;
 		}
-
 		CheckSwapCell (srcCell, targetCell);
 	}
 
