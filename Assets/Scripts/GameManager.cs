@@ -87,7 +87,9 @@ public class GameManager : Singleton<GameManager> {
 				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startLeft, (mapHeight - i) + j, j);
 				cell.SetCoordinate (new Vector3(startLeft, (mapHeight - i) + j, j));
-				cell.SetBlockType (GetBlockRandomType ());
+				BlockType getBlockType = GetBlockRandomType ();
+				cell.InitBlockHP (getBlockType);
+				cell.SetBlockType (getBlockType);
 				cells.Add (cell);
 			}
 		}
@@ -96,7 +98,9 @@ public class GameManager : Singleton<GameManager> {
 			Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 			cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", 0, i, i);
 			cell.SetCoordinate (new Vector3(0, i, i));
-			cell.SetBlockType (GetBlockRandomType ());
+			BlockType getBlockType = GetBlockRandomType ();
+			cell.InitBlockHP (getBlockType);
+			cell.SetBlockType (getBlockType);
 			cells.Add (cell);
 		}
 
@@ -108,7 +112,9 @@ public class GameManager : Singleton<GameManager> {
 				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startRight, j, (mapHeight - i) + j);
 				cell.SetCoordinate (new Vector3(startRight, j, (mapHeight - i) + j));
-				cell.SetBlockType (GetBlockRandomType ());
+				BlockType getBlockType = GetBlockRandomType ();
+				cell.InitBlockHP (getBlockType);
+				cell.SetBlockType (getBlockType);
 				cells.Add (cell);
 			}
 		}
@@ -125,7 +131,9 @@ public class GameManager : Singleton<GameManager> {
 	{
 		specialBlockCount = 0;
 		foreach (Cell cell in cells) {
-			cell.SetBlockType (GetBlockRandomType ());
+			BlockType getBlockType = GetBlockRandomType ();
+			cell.InitBlockHP (getBlockType);
+			cell.SetBlockType (getBlockType);
 		}
 		Debug.Log (" ### Special Block Count = " + specialBlockCount);
 
@@ -357,14 +365,16 @@ public class GameManager : Singleton<GameManager> {
 
 	void SwapCell(Cell srcCell, Cell targetCell)
 	{
+		int originSrcHP = srcCell.HP;
+		srcCell.HP = targetCell.HP;
+		targetCell.HP = originSrcHP;
+
 		BlockType originSrcBlockType = srcCell.blockType;
 		srcCell.blockType = targetCell.blockType;
 		targetCell.blockType = originSrcBlockType;
 
 		srcCell.SetBlockType (srcCell.blockType);
-		srcCell.SetBlockHP (srcCell.blockType);
-		targetCell.SetBlockType (targetCell.blockType);
-		targetCell.SetBlockHP (targetCell.blockType);
+		targetCell.SetBlockType (targetCell.blockType);;
 	}
 
 	void CheckSwapCell (Cell srcCell, Cell targetCell)
@@ -436,8 +446,8 @@ public class GameManager : Singleton<GameManager> {
 				list_Empty.Add (cell);
 		}
 
-		Debug.Log ("Highest Idx = " + findHigh [0].posIdx);   // 0, 5, 5
-		findHigh.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.y.CompareTo (cellOne.posIdx.y));	
+		//Debug.Log ("Highest Idx = " + findHigh [0].posIdx);   // 0, 5, 5
+		findHigh.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.y.CompareTo (cellOne.posIdx.y));
 
 		foreach (Cell empty in list_Empty)
 		{
@@ -450,13 +460,16 @@ public class GameManager : Singleton<GameManager> {
 						cell.img_Block = GameObject.Instantiate (blockPrefab, cell.trBlock.transform).GetComponent<Image> ();
 
 					cell.img_Block.transform.position = new Vector3 (Screen.width * 0.5f, Screen.height * 0.95f, 0f);
-					cell.SetBlockType (GetBlockRandomType ());
+					BlockType getBlockType = GetBlockRandomType ();
+					cell.InitBlockHP (getBlockType);
+					cell.SetBlockType (getBlockType);
 					yield return new WaitForSeconds (0.3f);
 
 					foreach (Cell c in list_SupplyRoot) {
 						cell.img_Block.transform.position = c.transform.position;
 						yield return new WaitForSeconds (0.3f);
 					}
+					list_LoopCell.Add(list_SupplyRoot[list_SupplyRoot.Count-1]);
 					break;
 				}
 			}
@@ -493,8 +506,58 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
+	IEnumerator DealDamageBlock ()
+	{	
+		foreach (Cell cell in list_BurstCell) 
+		{
+			List<Cell> list = new List<Cell> ();
+			Cell getCell = GetTwentyDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+			getCell = GetTwoDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+			getCell = GetFourDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+			getCell = GetSixDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+			getCell = GetEightDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+			getCell = GetTenDirectionCell (cell);
+			if ((getCell != null) && (getCell.blockType == BlockType.TOP))
+				list.Add (getCell);
+
+			for(int i=0; i<list.Count; i++) {
+				if (list_DealDamageCell.Contains (list[i]) == false)
+					list_DealDamageCell.Add (list[i]);
+			}
+		}
+
+		yield return null;
+
+		foreach (Cell damage in list_DealDamageCell) {
+			Debug.Log ("DAMAGE Idx = " + damage.posIdx);
+			damage.DealDamageHP ();
+			if (damage.HP <= 0) {
+				specialBlockCount = specialBlockCount > 0 ? specialBlockCount - 1 : 0;
+				damage.blockType = BlockType.NONE;
+				damage.HP = 1;
+				if(damage.img_Block != null)
+					GameObject.Destroy (damage.img_Block.gameObject);
+			} else {
+				damage.SetBlockType (damage.blockType);	
+			}
+		}
+
+		list_DealDamageCell.Clear ();
+	}
+
 	IEnumerator BurstLoopRoutine ()
 	{
+		touchEnable = false;
 		yield return new WaitForSeconds (0.5f);
 
 		foreach (Cell cell in list_BurstCell) {
@@ -503,7 +566,9 @@ public class GameManager : Singleton<GameManager> {
 			if(cell.img_Block != null)
 				GameObject.Destroy (cell.img_Block.gameObject);
 		}
-		yield return new WaitForSeconds (0.2f);
+		yield return new WaitForSeconds (0.5f);
+		yield return StartCoroutine (DealDamageBlock ());
+		yield return new WaitForSeconds (0.5f);
 		yield return StartCoroutine (SlideAllDown ());
 		yield return StartCoroutine (SupplyNewBlock ());
 
@@ -520,6 +585,8 @@ public class GameManager : Singleton<GameManager> {
 
 		if (list_BurstCell.Count > 0) {
 			yield return StartCoroutine (BurstLoopRoutine ());
+		} else {
+			touchEnable = true;
 		}
 	}
 
@@ -566,7 +633,8 @@ public class GameManager : Singleton<GameManager> {
 
 		if (matchBlockExist == true) {
 			foreach (Cell c in list_BurstAxisXCell) {
-				list_BurstCell.Add (c);
+				if(list_BurstCell.Contains(c) == false)
+					list_BurstCell.Add (c);
 			}
 		}
 	}
@@ -607,7 +675,8 @@ public class GameManager : Singleton<GameManager> {
 
 		if (matchBlockExist == true) {
 			foreach (Cell c in list_BurstAxisYCell) {
-				list_BurstCell.Add (c);
+				if(list_BurstCell.Contains(c) == false)
+					list_BurstCell.Add (c);
 			}
 		}
 	}
@@ -648,7 +717,8 @@ public class GameManager : Singleton<GameManager> {
 
 		if (matchBlockExist == true) {
 			foreach (Cell c in list_BurstAxisZCell) {
-				list_BurstCell.Add (c);
+				if(list_BurstCell.Contains(c) == false)
+					list_BurstCell.Add (c);
 			}
 		}
 	}

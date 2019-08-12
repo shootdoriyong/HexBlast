@@ -30,18 +30,24 @@ public class Cell : MonoBehaviour {
 		get { return hp; }
 		set { hp = value; }
 	}
+
+	public void InitBlockHP (BlockType _blockType)
+	{
+		HP = _blockType >= BlockType.TOP ? 2 : 1;
+	}
+
+	public void DealDamageHP()
+	{
+		HP -= 1;
+	}
 		
 	public void SetBlockType(BlockType _blockType)
 	{
 		blockType = _blockType;
-		img_Block.sprite = Resources.Load<Sprite>(string.Format("Textures/Hex/img_{0}", _blockType));
+		string spriteName = string.Format ("Textures/Hex/img_{0}_{1}", _blockType, HP);
+		img_Block.sprite = Resources.Load<Sprite>(spriteName);
 	}
-
-	public void SetBlockHP(BlockType _blockType)
-	{
-		HP = _blockType < BlockType.TOP ? 1 : 2;
-	}
-
+		
 	public void SetCoordinate (Vector3 _posIdx)
 	{
 		posIdx = _posIdx;
@@ -78,13 +84,23 @@ public class Cell : MonoBehaviour {
 	#region EventTrigger
 	public void BeginDrag ()
 	{
-		Debug.Log ("BEGIN Pos = " + Input.mousePosition);
+		if (GameManager.instance.touchEnable == false) {
+			Debug.Log (" Don't Touch !!!");
+			return;
+		}
+
+		//Debug.Log ("BEGIN Pos = " + Input.mousePosition);
 		btnDownPos = Input.mousePosition;
 	}
 		
 	public void EndDrag ()
 	{
-		Debug.Log ("END Pos = " + Input.mousePosition);
+		if (GameManager.instance.touchEnable == false) {
+			Debug.Log (" Don't Touch !!!");
+			return;
+		}
+
+		//Debug.Log ("END Pos = " + Input.mousePosition);
 		btnUpPos = Input.mousePosition;
 
 		DragDirection dir = GetDirection ();
