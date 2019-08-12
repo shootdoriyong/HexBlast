@@ -19,6 +19,7 @@ public class GameManager : Singleton<GameManager> {
 	List<Cell> list_LoopCell = new List<Cell>();
 	List<Cell> list_DealDamageCell = new List<Cell>();
 
+	float moveTime = 0.5f;
 	int specialBlockCount = 0;
 	public bool touchEnable = true;
 
@@ -122,7 +123,7 @@ public class GameManager : Singleton<GameManager> {
 		Debug.Log (" ### Special Block Count = " + specialBlockCount);
 
 		if (ExistMatchingBlock () == true) {
-			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 다시 섰었습니다.";
+			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 다시 셔플합니다.";
 			ShuffleBoard (mapHeight, mapRow);
 		}
 	}
@@ -403,15 +404,52 @@ public class GameManager : Singleton<GameManager> {
 			StartCoroutine (ResetCell (srcCell, targetCell));	
 		}
 	}
+
+	IEnumerator FirstSlideAllDown ()
+	{
+		List<Cell> list_UpCell = new List<Cell> ();
+		foreach (Cell burstCell in list_BurstCell) {
+			foreach (Cell cell in cells) {
+				if ((burstCell.posIdx.x == cell.posIdx.x) && (burstCell.posIdx.y < cell.posIdx.y)) {
+					if (cell.blockType == BlockType.NONE) continue;
+					if (list_UpCell.Contains (cell) == true) continue;
+					list_UpCell.Add (cell);
+				}
+			}
+		}
+		if (list_UpCell.Count == 0)
+			yield break;
+		foreach (Cell cell in list_UpCell) {
+			yield return StartCoroutine(SlideOnlyDown (cell));
+		}
+		yield return null;
+	}
 		
 	IEnumerator SlideAllDown ()
 	{
-		cells.Sort ((Cell cellOne, Cell cellTwo) => cellOne.posIdx.y.CompareTo (cellTwo.posIdx.y));
+		cells.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.x.CompareTo (cellOne.posIdx.x));
 		foreach (Cell cell in cells) {
 			if (cell.blockType == BlockType.NONE) 
 				continue;
 			yield return StartCoroutine(SlideDown (cell));
 		}
+	}
+
+	IEnumerator SlideOnlyDown (Cell srcCell)
+	{
+		List<Cell> list_DownPath = new List<Cell> ();
+		FindLoopOnlyDownPath (list_DownPath, srcCell);
+		if (list_DownPath.Count == 0) {
+			yield break;
+		}
+		list_DownPath.Insert (0, srcCell);
+		for (int i = 0; i < list_DownPath.Count-1; i++) {
+			MoveCell (list_DownPath [i], list_DownPath [i+1]);
+			yield return new WaitForSeconds (moveTime);
+		}
+
+		if(list_LoopCell.Contains(list_DownPath[list_DownPath.Count-1]) == false)
+			list_LoopCell.Add (list_DownPath[list_DownPath.Count-1]);
 	}
 
 	IEnumerator SlideDown (Cell srcCell)
@@ -425,7 +463,7 @@ public class GameManager : Singleton<GameManager> {
 		list_DownPath.Insert (0, srcCell);
 		for (int i = 0; i < list_DownPath.Count-1; i++) {
 			MoveCell (list_DownPath [i], list_DownPath [i+1]);
-			yield return new WaitForSeconds (0.3f);
+			yield return new WaitForSeconds (moveTime);
 		}
 			
 		if(list_LoopCell.Contains(list_DownPath[list_DownPath.Count-1]) == false)
@@ -463,19 +501,30 @@ public class GameManager : Singleton<GameManager> {
 					BlockType getBlockType = GetBlockRandomType ();
 					cell.InitBlockHP (getBlockType);
 					cell.SetBlockType (getBlockType);
-					yield return new WaitForSeconds (0.3f);
+					yield return new WaitForSeconds (moveTime);
 
 					foreach (Cell c in list_SupplyRoot) {
 						cell.img_Block.transform.position = c.transform.position;
-						yield return new WaitForSeconds (0.3f);
+						yield return new WaitForSeconds (moveTime);
 					}
 					list_LoopCell.Add(list_SupplyRoot[list_SupplyRoot.Count-1]);
 					break;
 				}
 			}
-			yield return new WaitForSeconds (0.3f);
+			yield return new WaitForSeconds (moveTime);
 		}
 		yield return null;
+	}
+
+	void FindLoopOnlyDownPath (List<Cell> pathList, Cell startCell)
+	{
+		Cell checkCell = GetSixDirectionCell (startCell);
+		if (checkCell != null) {
+			if (checkCell.blockType == BlockType.NONE) {
+				pathList.Add (checkCell);
+				FindLoopOnlyDownPath (pathList, checkCell);
+			}
+		}
 	}
 
 	void FindLoopDownPath (List<Cell> pathList, Cell startCell)
@@ -569,6 +618,7 @@ public class GameManager : Singleton<GameManager> {
 		yield return new WaitForSeconds (0.5f);
 		yield return StartCoroutine (DealDamageBlock ());
 		yield return new WaitForSeconds (0.5f);
+		yield return StartCoroutine (FirstSlideAllDown ());
 		yield return StartCoroutine (SlideAllDown ());
 		yield return StartCoroutine (SupplyNewBlock ());
 
