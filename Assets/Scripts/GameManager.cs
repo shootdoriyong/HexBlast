@@ -17,6 +17,7 @@ public class GameManager : Singleton<GameManager> {
 	List<Cell> cells = new List<Cell>();
 	List<Cell> list_BurstCell = new List<Cell> ();
 	List<Cell> list_LoopCell = new List<Cell>();
+	List<Cell> list_DealDamageCell = new List<Cell>();
 
 	int specialBlockCount = 0;
 	public bool touchEnable = true;
@@ -115,7 +116,7 @@ public class GameManager : Singleton<GameManager> {
 		Debug.Log (" ### Special Block Count = " + specialBlockCount);
 
 		if (ExistMatchingBlock () == true) {
-			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 섞어줍니다.";
+			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 다시 섰었습니다.";
 			ShuffleBoard (mapHeight, mapRow);
 		}
 	}
@@ -215,7 +216,6 @@ public class GameManager : Singleton<GameManager> {
 				baseBlockType = list_EqualAxisYCell [i].blockType;
 			}
 		}
-
 		return false;
 	}
 
@@ -493,27 +493,6 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
-	void GetSupplyPath (List<Cell> emptyList)
-	{
-		List<Cell> list = new List<Cell>();
-		foreach (Cell cell in cells) {
-			if (cell.posIdx.x == 0)
-				list.Add (cell);
-		}
-		list.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.y.CompareTo (cellOne.posIdx.y));
-		GetSupplyPathAxisX (list [0]);
-	}
-
-	List<Vector3> GetSupplyPathAxisX (Cell highestCell)
-	{
-		return null;
-	}
-
-	List<Vector3> GetSupplyPathAxisY ()
-	{
-		return null;
-	}
-
 	IEnumerator BurstLoopRoutine ()
 	{
 		yield return new WaitForSeconds (0.5f);
@@ -521,7 +500,8 @@ public class GameManager : Singleton<GameManager> {
 		foreach (Cell cell in list_BurstCell) {
 			Debug.Log ("@@@ Burst PosIdx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
 			cell.blockType = BlockType.NONE;
-			GameObject.Destroy (cell.img_Block.gameObject);
+			if(cell.img_Block != null)
+				GameObject.Destroy (cell.img_Block.gameObject);
 		}
 		yield return new WaitForSeconds (0.2f);
 		yield return StartCoroutine (SlideAllDown ());
@@ -550,9 +530,10 @@ public class GameManager : Singleton<GameManager> {
 		touchEnable = true;
 	}
 
+	//셀 기준 X축으로 터질 수 있는 블록확보.
 	void GetListBurstCellAxisX (Cell cell)
 	{
-		if (cell.blockType == BlockType.NONE)
+		if ((cell.blockType == BlockType.NONE) || (cell.blockType == BlockType.TOP))
 			return;
 
 		List<Cell> list_BurstAxisXCell = new List<Cell> ();
@@ -590,9 +571,10 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
+	//셀 기준 Y축으로 터질 수 있는 블록확보.
 	void GetListBurstCellAxisY (Cell cell)
 	{
-		if (cell.blockType == BlockType.NONE)
+		if ((cell.blockType == BlockType.NONE) || (cell.blockType == BlockType.TOP))
 			return;
 
 		List<Cell> list_BurstAxisYCell = new List<Cell> ();
@@ -630,8 +612,12 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
+	//셀 기준 Z축으로 터질 수 있는 블록확보.
 	void GetListBurstCellAxisZ (Cell cell)
 	{
+		if ((cell.blockType == BlockType.NONE) || (cell.blockType == BlockType.TOP))
+			return;
+
 		List<Cell> list_BurstAxisZCell = new List<Cell> ();
 		List<Cell> list_EqualAxisZCell = new List<Cell> ();
 
