@@ -24,7 +24,7 @@ public class Cell : MonoBehaviour {
 		img_Block = trBlock.Find ("Block").GetComponent<Image> ();
 		txt_Pos = transform.Find ("TXT_Pos").GetComponent<Text> ();
 	}
-		
+
 	public int HP
 	{
 		get { return hp; }
@@ -40,14 +40,14 @@ public class Cell : MonoBehaviour {
 	{
 		HP -= 1;
 	}
-		
+
 	public void SetBlockType(BlockType _blockType)
 	{
 		blockType = _blockType;
 		string spriteName = string.Format ("Textures/Hex/img_{0}_{1}", _blockType, HP);
 		img_Block.sprite = Resources.Load<Sprite>(spriteName);
 	}
-		
+
 	public void SetCoordinate (Vector3 _posIdx)
 	{
 		posIdx = _posIdx;
@@ -76,8 +76,6 @@ public class Cell : MonoBehaviour {
 		else if(angle <= 180f && angle > 120f)
 			dir = DragDirection.TenOClock;
 
-		//Debug.Log ("### Direction = " + dir + " ,,, Angle = " + angle);
-
 		return dir;
 	}
 
@@ -89,10 +87,10 @@ public class Cell : MonoBehaviour {
 			return;
 		}
 
-		//Debug.Log ("BEGIN Pos = " + Input.mousePosition);
 		btnDownPos = Input.mousePosition;
+		GameManager.instance.EmptyComment ();
 	}
-		
+
 	public void EndDrag ()
 	{
 		if (GameManager.instance.touchEnable == false) {
@@ -100,9 +98,7 @@ public class Cell : MonoBehaviour {
 			return;
 		}
 
-		//Debug.Log ("END Pos = " + Input.mousePosition);
 		btnUpPos = Input.mousePosition;
-
 		DragDirection dir = GetDirection ();
 		GameManager.instance.CheckEnableSwapCell (this, dir);
 	}

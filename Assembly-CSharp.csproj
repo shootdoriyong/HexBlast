@@ -58,7 +58,6 @@
      <Compile Include="Assets\Demigiant\DOTween\Modules\DOTweenModuleUI.cs" />
      <Compile Include="Assets\Demigiant\DOTween\Modules\DOTweenModuleUnityVersion.cs" />
      <Compile Include="Assets\Demigiant\DOTween\Modules\DOTweenModuleUtils.cs" />
-     <Compile Include="Assets\Scripts\Block.cs" />
      <Compile Include="Assets\Scripts\Cell.cs" />
      <Compile Include="Assets\Scripts\Enums.cs" />
      <Compile Include="Assets\Scripts\GameManager.cs" />
