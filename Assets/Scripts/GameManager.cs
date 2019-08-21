@@ -2,17 +2,21 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.U2D;
 using System;
+using UnityEngine.SceneManagement;
 
 public class GameManager : Singleton<GameManager> {
-	
+
+	Camera mainCamera;
+
 	//Objects.
 	Transform 	cellRoot;
 	Text 		txt_Comment;
+	Text 		txt_SuffleTimer;
+	GameObject	btn_Restart;
 
-	Text 		txt_MissionCount;
-	Text 		txt_MoveCount;
+	Text 		txt_Mission;
+	Text 		txt_Move;
 	Text 		txt_Score;
 
 	GameObject cellPrefab;
@@ -23,70 +27,56 @@ public class GameManager : Singleton<GameManager> {
 	List<Cell> list_LoopCell = new List<Cell>();
 	List<Cell> list_DealDamageCell = new List<Cell>();
 
-	float moveTime = 0.02f;
+	float supplyTime = 0.05f;
+	float moveTime = 0.05f;
+	float burstDelayTime = 0.25f;
+
 	int specialBlockCount = 0;
 	public bool touchEnable = true;
 
-	int missionCount = 10;
-	int moveCount = 30;
-	int score = 0;
+	int missionCount;
+	int moveCount;
+	int score;
+
+	int mapRow = 0;
+	int mapHeight = 0;
+
+	GameState gameState = GameState.READY;
 
 	void Start ()
 	{
 		cellRoot = GameObject.Find ("Canvas/CellRoot").transform;
-		txt_Comment = GameObject.Find ("Canvas/Text").GetComponent<Text> ();
+		txt_Comment = GameObject.Find ("Canvas/TXT_Comment").GetComponent<Text> ();
+		txt_SuffleTimer = GameObject.Find ("Canvas/TXT_SuffleTimer").GetComponent<Text> ();
+		txt_SuffleTimer.gameObject.SetActive (false);
+		btn_Restart = GameObject.Find ("Canvas/BTN_Restart").gameObject;
+		btn_Restart.SetActive (false);
 
-//		txt_MissionCount = GameObject.Find ("Canvas/Text_MissionCount").GetComponent<Text> ();
-//		txt_MoveCount = GameObject.Find ("Canvas/Text_MoveCount").GetComponent<Text> ();
-//		txt_Score = GameObject.Find ("Canvas/Text_Score").GetComponent<Text> ();
+		txt_Mission = GameObject.Find ("Canvas/TXT_Mission").GetComponent<Text> ();
+		txt_Move = GameObject.Find ("Canvas/TXT_Move").GetComponent<Text> ();
+		txt_Score = GameObject.Find ("Canvas/TXT_Score").GetComponent<Text> ();
+
+		score = 0;
+		missionCount = IngameDefine.specialBlockMissionCount;
+		moveCount = IngameDefine.maximumMoveCount;
+
+		refreshScoreUI ();
+		refreshMissionCountUI ();
+		refreshMoveCountUI ();
 
 		cellPrefab = Resources.Load<GameObject>("Prefabs/Cell");
 		blockPrefab = Resources.Load<GameObject>("Prefabs/Block");
-		InitializeBoard (IngameDefine.maximumHeight, IngameDefine.mapRow);
+
+		mapHeight = IngameDefine.mapHeight;
+		mapRow = IngameDefine.mapRow;
+
+		InitializeBoard ();
+
+		gameState = GameState.PLAY;
 	}
 
-	void Update() 
-	{
-		#if (UNITY_ANDROID && !UNITY_EDITOR)
-		{
-			if (Input.touchCount > 0) 
-			{ 
-				if (Input.GetTouch(0).phase == TouchPhase.Began) 
-				{ 
-
-				} 
-				else if (Input.GetTouch(0).phase == TouchPhase.Moved) 
-				{ 
-
-				} 
-			} 
-		}
-		#else
-		{
-			if (Input.GetMouseButtonDown(0)) 
-			{ 
-//				Vector2 wp = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-//				Ray2D ray = new Ray2D(wp, Vector2.zero);
-//				RaycastHit2D hit = Physics2D.Raycast(wp, Vector2.zero);
-//
-//				if(hit == null)
-//				{
-//					Debug.Log("### Hit NULL");
-//				}
-//				else
-//				{
-//					Debug.Log("Hit Name = " + hit.transform.name);
-//				}
-			} 
-			else if (Input.GetMouseButtonUp(0)) 
-			{ 
-				
-			} 
-		}
-		#endif
-	}
-
-	void InitializeBoard (int mapHeight, int mapRow)
+	//보드 초기화.
+	void InitializeBoard ()
 	{
 		Debug.Log ("### InitializeBoard");
 
@@ -100,7 +90,7 @@ public class GameManager : Singleton<GameManager> {
 				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startLeft, (mapHeight - i) + j, j);
 				cell.SetCoordinate (new Vector3(startLeft, (mapHeight - i) + j, j));
-				BlockType getBlockType = GetBlockRandomType ();
+				BlockType getBlockType = GetRandomBlockType ();
 				cell.InitBlockHP (getBlockType);
 				cell.SetBlockType (getBlockType);
 				cells.Add (cell);
@@ -111,7 +101,7 @@ public class GameManager : Singleton<GameManager> {
 			Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 			cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", 0, i, i);
 			cell.SetCoordinate (new Vector3(0, i, i));
-			BlockType getBlockType = GetBlockRandomType ();
+			BlockType getBlockType = GetRandomBlockType ();
 			cell.InitBlockHP (getBlockType);
 			cell.SetBlockType (getBlockType);
 			cells.Add (cell);
@@ -125,66 +115,91 @@ public class GameManager : Singleton<GameManager> {
 				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
 				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startRight, j, (mapHeight - i) + j);
 				cell.SetCoordinate (new Vector3(startRight, j, (mapHeight - i) + j));
-				BlockType getBlockType = GetBlockRandomType ();
+				BlockType getBlockType = GetRandomBlockType ();
+
+				if (startRight == 3 && j < 2)
+					getBlockType = BlockType.ORANGE;
+
+				if (startRight == 2 && j == 3)
+					getBlockType = BlockType.ORANGE;
+
 				cell.InitBlockHP (getBlockType);
 				cell.SetBlockType (getBlockType);
 				cells.Add (cell);
 			}
 		}
 
-//		for(int i = rightRow; i<mapHeight; i++)
-//		{
-//			int startRight = mapHeight - i;
-//			for (int j = 0; j < i; j++) {
-//				Cell cell = GameObject.Instantiate (cellPrefab, cellRoot).GetComponent<Cell>();
-//				cell.transform.name = string.Format ("Cell( {0}, {1}, {2} )", startRight, j, (mapHeight - i) + j);
-//				cell.SetCoordinate (new Vector3(startRight, j, (mapHeight - i) + j));
-//				BlockType getBlockType = GetBlockRandomType ();
-//				cell.InitBlockHP (getBlockType);
-//				cell.SetBlockType (getBlockType);
-//				cells.Add (cell);
-//			}
-//		}
-
-		Debug.Log (" ### Special Block Count = " + specialBlockCount);
-
 		if (ExistMatchingBlock () == true) {
 			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 다시 셔플합니다.";
 			ShuffleBoard (mapHeight, mapRow);
 		}
-	}
-
-	void ShuffleBoard (int mapHeight, int mapRow)
-	{
-		specialBlockCount = 0;
-		foreach (Cell cell in cells) {
-			BlockType getBlockType = GetBlockRandomType ();
-			cell.InitBlockHP (getBlockType);
-			cell.SetBlockType (getBlockType);
-		}
-		Debug.Log (" ### Special Block Count = " + specialBlockCount);
-
-		if (ExistMatchingBlock () == true) {
+		else if (CheckPossibleBoard () == false) {
 			ShuffleBoard (mapHeight, mapRow);
 		}
 	}
 
-	BlockType GetBlockRandomType ()
+	//게임 플레이가 가능한 보드인지 검사합니다.
+	public bool CheckPossibleBoard ()
 	{
-		int randomNum = specialBlockCount >= IngameDefine.maxSpecialBlockCount ? UnityEngine.Random.Range (1, 8) : UnityEngine.Random.Range (1, 9);
-		BlockType blockType = BlockType.NONE;
-		blockType = (BlockType)Enum.Parse (typeof(BlockType), randomNum.ToString());
-
-		if (blockType == BlockType.TOP)
-			specialBlockCount += 1;
-
-		return blockType;
+		foreach (Cell cell in cells) {
+			if (cell.blockType == BlockType.TOP)
+				continue;
+			if (CheckPossibleMatchingCell (cell))
+				return true;
+		}
+		Debug.Log (" ----------- IMPOSSIBLE BOARD ----------------");
+		txt_Comment.text = "매칭 가능한 블록이 \n 존재하지 않아 맵을 다시 셔플합니다.";
+		return false;
 	}
 
+	bool CheckPossibleMatchingCell (Cell cell)
+	{
+		Cell checkCell = GetTwentyDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		checkCell = GetTwoDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		checkCell = GetFourDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		checkCell = GetSixDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		checkCell = GetEightDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		checkCell = GetTenDirectionCell (cell);
+		if(CheckMatchingSwapBlockType(cell, checkCell))
+			return true;
+
+		return false;
+	}
+
+	bool CheckMatchingSwapBlockType (Cell srcCell, Cell checkCell)
+	{
+		bool matchingEnable = false;
+
+		if ((checkCell != null) && (checkCell.blockType != srcCell.blockType)) {
+			SwapBlockType (srcCell, checkCell);
+			if (CheckMatchingBlockAxisX (checkCell) || CheckMatchingBlockAxisY (checkCell) || CheckMatchingBlockAxisZ (checkCell)) {
+				matchingEnable = true;
+			}
+			SwapBlockType (srcCell, checkCell);
+		}
+		return matchingEnable;
+	}
+
+	//보드에 이미 매칭된 블록들이 있는지 판단합니다.
 	bool ExistMatchingBlock ()
 	{
 		foreach (Cell cell in cells) {
-			if (cell.blockType == BlockType.NONE)
+			if (cell.blockType == BlockType.NONE || cell.blockType == BlockType.TOP)
 				continue;
 			if (CheckMatchingBlockAxisX (cell)) {
 				Debug.Log ("***** Axis X Exist Block ");
@@ -202,6 +217,7 @@ public class GameManager : Singleton<GameManager> {
 		return false;
 	}
 
+	//X축으로 매칭된 블록이 있는지 검사합니다.
 	bool CheckMatchingBlockAxisX (Cell cell)
 	{
 		List<Cell> list_EqualAxisXCell = new List<Cell> ();
@@ -215,10 +231,12 @@ public class GameManager : Singleton<GameManager> {
 		int matchBlockCount = 1;
 
 		for (int i = 1; i < list_EqualAxisXCell.Count; i++) {
-			if ((baseBlockType == list_EqualAxisXCell [i].blockType) && (baseBlockType != BlockType.NONE)) {
+			if ((baseBlockType == list_EqualAxisXCell [i].blockType) && (baseBlockType > BlockType.NONE) && (baseBlockType < BlockType.TOP)) {
 				matchBlockCount += 1;
-				if (matchBlockCount >= 3)
+				if (matchBlockCount >= 3) {
+					//Debug.Log ("### Matching Possible X ,,, Cell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
 					return true;
+				}
 			}
 			else {
 				matchBlockCount = 1;
@@ -228,6 +246,7 @@ public class GameManager : Singleton<GameManager> {
 		return false;
 	}
 
+	//Y축으로 매칭된 블록이 있는지 검사합니다.
 	bool CheckMatchingBlockAxisY (Cell cell)
 	{
 		List<Cell> list_EqualAxisYCell = new List<Cell> ();
@@ -241,10 +260,12 @@ public class GameManager : Singleton<GameManager> {
 		int matchBlockCount = 1;
 
 		for (int i = 1; i < list_EqualAxisYCell.Count; i++) {
-			if ((baseBlockType == list_EqualAxisYCell [i].blockType) && (baseBlockType != BlockType.NONE)) {
+			if ((baseBlockType == list_EqualAxisYCell [i].blockType) && (baseBlockType != BlockType.NONE) && (baseBlockType < BlockType.TOP)) {
 				matchBlockCount += 1;
-				if (matchBlockCount >= 3)
+				if (matchBlockCount >= 3) {
+					//Debug.Log ("### Matching Possible X ,,, Cell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
 					return true;
+				}
 			}
 			else {
 				matchBlockCount = 1;
@@ -254,6 +275,7 @@ public class GameManager : Singleton<GameManager> {
 		return false;
 	}
 
+	//Z축으로 매칭된 블록이 있는지 검사합니다.
 	bool CheckMatchingBlockAxisZ (Cell cell)
 	{
 		List<Cell> list_EqualAxisZCell = new List<Cell> ();
@@ -267,92 +289,123 @@ public class GameManager : Singleton<GameManager> {
 		int matchBlockCount = 1;
 
 		for (int i = 1; i < list_EqualAxisZCell.Count; i++) {
-			if ((baseBlockType == list_EqualAxisZCell [i].blockType) && (baseBlockType != BlockType.NONE)) {
+			if ((baseBlockType == list_EqualAxisZCell [i].blockType) && (baseBlockType != BlockType.NONE) && (baseBlockType < BlockType.TOP)) {
 				matchBlockCount += 1;
-				if (matchBlockCount >= 3)
+				if (matchBlockCount >= 3) {
+					//Debug.Log ("### Matching Possible Z ,,, Cell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
 					return true;
+				}
 			}
 			else {
 				matchBlockCount = 1;
 				baseBlockType = list_EqualAxisZCell [i].blockType;
 			}
 		}
-
 		return false;
 	}
 
-	// 12시 방향에있는 셀 탐색.
-	Cell GetTwentyDirectionCell (Cell srcCell)
+	//보드를 섞어줍니다.
+	void ShuffleBoard (int mapHeight, int mapRow)
+	{
+		specialBlockCount = 0;
+		foreach (Cell cell in cells) {
+			BlockType getBlockType = GetRandomBlockType ();
+			cell.InitBlockHP (getBlockType);
+			cell.SetBlockType (getBlockType);
+		}
+
+		if (ExistMatchingBlock () == true) {
+			txt_Comment.text = "이미 매칭중인 블록이 \n 존재하여 맵을 다시 셔플합니다.";
+			ShuffleBoard (mapHeight, mapRow);
+		} 
+		else if (CheckPossibleBoard () == false) {
+			ShuffleBoard (mapHeight, mapRow);
+		}
+
+		// Success.
+		txt_Comment.text = "보드를 다시 셋팅했습니다.";
+	}
+
+	//블록타입을 랜덤으로 가져옵니다.
+	BlockType GetRandomBlockType ()
+	{
+		int randomNum = specialBlockCount >= IngameDefine.maxSpecialBlockCntInBoard ? UnityEngine.Random.Range (1, 8) : UnityEngine.Random.Range (1, 9);
+		BlockType blockType = BlockType.NONE;
+		blockType = (BlockType)Enum.Parse (typeof(BlockType), randomNum.ToString());
+
+		if (blockType == BlockType.TOP)
+			specialBlockCount += 1;
+
+		return blockType;
+	}
+
+	// 12시 방향에있는 블록을 가져옵니다..
+	Cell GetTwentyDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.x == cell.posIdx.x) && (srcCell.posIdx.y + 1 == cell.posIdx.y)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.x == cell.posIdx.x) && (srcCell.posIdx.y + gap == cell.posIdx.y)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
-	// 2시 방향에있는 셀 탐색.
-	Cell GetTwoDirectionCell (Cell srcCell)
+	// 2시 방향에있는 블록을 가져옵니다..
+	Cell GetTwoDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.y == cell.posIdx.y) && (srcCell.posIdx.x + 1 == cell.posIdx.x)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.y == cell.posIdx.y) && (srcCell.posIdx.x + gap == cell.posIdx.x)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
-	// 4시 방향에있는 셀 탐색.
-	Cell GetFourDirectionCell (Cell srcCell)
+	// 4시 방향에있는 블록을 가져옵니다..
+	Cell GetFourDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.z == cell.posIdx.z) && (srcCell.posIdx.x + 1 == cell.posIdx.x)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.z == cell.posIdx.z) && (srcCell.posIdx.x + gap == cell.posIdx.x)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
-	// 6시 방향에있는 셀 탐색.
-	Cell GetSixDirectionCell (Cell srcCell)
+	// 6시 방향에있는 블록을 가져옵니다..
+	Cell GetSixDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.x == cell.posIdx.x) && (srcCell.posIdx.y - 1 == cell.posIdx.y)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.x == cell.posIdx.x) && (srcCell.posIdx.y - gap == cell.posIdx.y)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
-	// 8시 방향에있는 셀 탐색.
-	Cell GetEightDirectionCell (Cell srcCell)
+	// 8시 방향에있는 블록을 가져옵니다..
+	Cell GetEightDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.y == cell.posIdx.y) && (srcCell.posIdx.x - 1 == cell.posIdx.x)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.y == cell.posIdx.y) && (srcCell.posIdx.x - gap == cell.posIdx.x)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
-	// 10시 방향에있는 셀 탐색.
-	Cell GetTenDirectionCell (Cell srcCell)
+	// 10시 방향에있는 블록을 가져옵니다..
+	Cell GetTenDirectionCell (Cell srcCell, int gap = 1)
 	{
 		foreach (Cell cell in cells) {
-			if ((srcCell.posIdx.z == cell.posIdx.z) && (srcCell.posIdx.y + 1 == cell.posIdx.y)) {
-				//Debug.Log ("--- Get TargetCell Idx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			if ((srcCell.posIdx.z == cell.posIdx.z) && (srcCell.posIdx.y + gap == cell.posIdx.y)) {
 				return cell;
 			}
 		}
 		return null;
 	}
 
+	// 두 블록이 스왑이 가능한지 체크합니다.
 	// srcCell = 이동시키고 싶은 셀. dir = 이동하고자하는 방향.
 	public void CheckEnableSwapCell (Cell srcCell, DragDirection dir)
 	{
@@ -381,29 +434,6 @@ public class GameManager : Singleton<GameManager> {
 		CheckSwapCell (srcCell, targetCell);
 	}
 
-	void MoveCell(Cell srcCell, Cell targetCell)
-	{
-		if(targetCell.img_Block == null)
-			targetCell.img_Block = GameObject.Instantiate (blockPrefab, targetCell.trBlock.transform).GetComponent<Image> ();
-		
-		targetCell.img_Block.transform.localPosition = Vector3.zero;
-		SwapCell (srcCell, targetCell);
-	}
-
-	void SwapCell(Cell srcCell, Cell targetCell)
-	{
-		int originSrcHP = srcCell.HP;
-		srcCell.HP = targetCell.HP;
-		targetCell.HP = originSrcHP;
-
-		BlockType originSrcBlockType = srcCell.blockType;
-		srcCell.blockType = targetCell.blockType;
-		targetCell.blockType = originSrcBlockType;
-
-		srcCell.SetBlockType (srcCell.blockType);
-		targetCell.SetBlockType (targetCell.blockType);;
-	}
-
 	void CheckSwapCell (Cell srcCell, Cell targetCell)
 	{
 		if (srcCell == null || targetCell == null) {
@@ -423,40 +453,61 @@ public class GameManager : Singleton<GameManager> {
 		GetListBurstCellAxisY (targetCell);
 		GetListBurstCellAxisZ (srcCell);
 		GetListBurstCellAxisZ (targetCell);
-	
+
 		if (list_BurstCell.Count > 0) {
 			StartCoroutine (BurstLoopRoutine ());
+			moveCount = Mathf.Max (0, moveCount - 1);;
+			refreshMoveCountUI ();
 		} else {
 			StartCoroutine (ResetCell (srcCell, targetCell));	
 		}
 	}
 
-	IEnumerator SlideAllOnlyDown ()
+	//블록을 target으로 이동.
+	void MoveCell(Cell srcCell, Cell targetCell)
 	{
-		//Cell Sort.
-//		cells.Sort ((Cell cellOne, Cell cellTwo) => cellOne.posIdx.x.CompareTo (cellTwo.posIdx.x));
-//		List<int> list_RowHeight = new List<int> ();
-//		int startX = (int)cells [0].posIdx.x;
-//		int inRowNum = 0;
-//		foreach (Cell cell in cells) {
-//			if (startX == (int)cell.posIdx.x) {
-//				inRowNum += 1;
-//			}
-//			else {
-//				list_RowHeight.Add (inRowNum);
-//				inRowNum = 1;
-//				startX = (int)cell.posIdx.x;
-//			}
-//		}
-//		if(inRowNum > 0)
-//			list_RowHeight.Add (inRowNum);
-//
-//		for (int i = 0; i < list_RowHeight.Count; i++) {
-//			Debug.Log ("### Height = " + list_RowHeight [i]);
-//		}
-			
-		List<Cell> list_UpCell = new List<Cell> ();
+		if(targetCell.img_Block == null)
+			targetCell.img_Block = GameObject.Instantiate (blockPrefab, targetCell.trBlock.transform).GetComponent<Image> ();
+
+		targetCell.img_Block.transform.localPosition = Vector3.zero;
+		SwapCell (srcCell, targetCell);
+	}
+
+	//스왑후 매칭이 불가능하면 이전으로 되돌립니다.
+	IEnumerator ResetCell (Cell srcCell, Cell targetCell)
+	{
+		touchEnable = false;
+		yield return new WaitForSeconds (0.5f);
+		SwapCell (srcCell, targetCell);
+		touchEnable = true;
+	}
+
+	//블록 스왑.
+	void SwapCell(Cell srcCell, Cell targetCell)
+	{
+		int originSrcHP = srcCell.HP;
+		srcCell.HP = targetCell.HP;
+		targetCell.HP = originSrcHP;
+
+		SwapBlockType (srcCell, targetCell);
+
+		srcCell.SetBlockType (srcCell.blockType);
+		targetCell.SetBlockType (targetCell.blockType);;
+	}
+
+	void SwapBlockType (Cell srcCell, Cell targetCell)
+	{
+		BlockType originSrcBlockType = srcCell.blockType;
+		srcCell.blockType = targetCell.blockType;
+		targetCell.blockType = originSrcBlockType;
+	}
+
+	//버스트된 블록 위의 블록들을 아래로 내려보냅니다.
+	IEnumerator SlideAllDown ()
+	{
+		Dictionary<float, List<Cell>> dic_All = new Dictionary<float, List<Cell>> ();
 		foreach (Cell burstCell in list_BurstCell) {
+			List<Cell> list_UpCell = new List<Cell> ();
 			foreach (Cell cell in cells) {
 				if ((burstCell.posIdx.x == cell.posIdx.x) && (burstCell.posIdx.y < cell.posIdx.y)) {
 					if (cell.blockType == BlockType.NONE) continue;
@@ -464,43 +515,111 @@ public class GameManager : Singleton<GameManager> {
 					list_UpCell.Add (cell);
 				}
 			}
+			if(dic_All.ContainsKey(burstCell.posIdx.x) == false)
+				dic_All.Add (burstCell.posIdx.x, list_UpCell);
 		}
-		if (list_UpCell.Count == 0)
+
+		int maxLength = 0;
+		foreach (KeyValuePair<float, List<Cell>> kvp in dic_All) {
+			maxLength = kvp.Value.Count > maxLength ? kvp.Value.Count : maxLength;
+		}
+
+		if (maxLength == 0)
 			yield break;
-		foreach (Cell cell in list_UpCell) {
-			yield return StartCoroutine(SlideOnlyDown (cell));
+
+		List<Cell> [] newArray = new List<Cell>[maxLength];
+		for (int i = 0; i < newArray.Length; i++)
+			newArray [i] = new List<Cell> ();
+
+		foreach (KeyValuePair<float, List<Cell>> kvp in dic_All) {
+			int startIndex = 0;
+			foreach (Cell c in kvp.Value) {
+				newArray[startIndex].Add(c);
+				startIndex += 1;
+			}
 		}
-		yield return null;
-	}
-		
-	IEnumerator SlideAllDown ()
-	{
-		//cells.Sort ((Cell cellOne, Cell cellTwo) => cellTwo.posIdx.x.CompareTo (cellOne.posIdx.x));
-		foreach (Cell cell in cells) {
-			if (cell.blockType == BlockType.NONE) 
-				continue;
-			yield return StartCoroutine(SlideDown (cell));
+
+		for (int i = 0; i < newArray.Length; i++) {
+			int maxDelayCount = 0;
+			foreach (Cell cell in newArray[i]) {
+				List<Cell> pathList = GetPathOnlyDownPath (cell);
+				int pathCount = pathList.Count;
+				maxDelayCount = pathCount > maxDelayCount ? pathCount : maxDelayCount;
+				StartCoroutine(SlideDown(cell, pathList));
+			}
+			yield return new WaitForSeconds (moveTime * maxDelayCount);
 		}
 	}
 
-	IEnumerator SlideOnlyDown (Cell srcCell)
+	List<Cell> GetPathOnlyDownPath (Cell srcCell)
 	{
 		List<Cell> list_DownPath = new List<Cell> ();
 		FindLoopOnlyDownPath (list_DownPath, srcCell);
 		if (list_DownPath.Count == 0) {
-			yield break;
+			return null;
 		}
 		list_DownPath.Insert (0, srcCell);
-		for (int i = 0; i < list_DownPath.Count-1; i++) {
-			MoveCell (list_DownPath [i], list_DownPath [i+1]);
+		return list_DownPath;
+	}
+
+	IEnumerator SlideDown (Cell srcCell, List<Cell> pathList)
+	{
+		for (int i = 0; i < pathList.Count-1; i++) {
+			MoveCell (pathList [i], pathList [i+1]);
 			yield return new WaitForSeconds (moveTime);
 		}
 
-		if(list_LoopCell.Contains(list_DownPath[list_DownPath.Count-1]) == false)
-			list_LoopCell.Add (list_DownPath[list_DownPath.Count-1]);
+		if(list_LoopCell.Contains(pathList[pathList.Count-1]) == false)
+			list_LoopCell.Add (pathList[pathList.Count-1]);
 	}
 
-	IEnumerator SlideDown (Cell srcCell)
+	//Idx로 셀을 가져옵니다.
+	Cell GetCell (Vector3 idx)
+	{
+		foreach (Cell cell in cells) {
+			if (cell == null)
+				continue;
+			if (cell.posIdx == idx)
+				return cell;
+		}
+		return null;
+	}
+
+	//아래 비어있는 블록을 채워줍니다.
+	IEnumerator SlideAllFill ()
+	{
+		int leftRow = IngameDefine.mapRow / 2;
+		for (int i = leftRow; i < mapHeight; i++) {
+			int startLeft = (mapHeight - i) * -1;
+			for (int j = 0; j < i; j++) {
+				//Debug.Log ("### GetCell Idx = " + new Vector3 (startLeft, (mapHeight - i) + j, j));
+				Cell cell = GetCell (new Vector3(startLeft, (mapHeight - i) + j, j));
+				if(cell.blockType != BlockType.NONE)
+					yield return StartCoroutine(SlideFill (cell));
+			}
+		}
+
+		int rightRow = mapRow / 2;
+		for(int i = rightRow; i < mapHeight; i++)
+		{
+			int startRight = mapHeight - i;
+			for (int j = 0; j < i; j++) {
+				//Debug.Log ("### GetCell Idx = " + new Vector3(startRight, j, (mapHeight - i) + j));
+				Cell cell = GetCell (new Vector3(startRight, j, (mapHeight - i) + j));
+				if(cell.blockType != BlockType.NONE)
+					yield return StartCoroutine(SlideFill (cell));
+			}
+		}
+
+		for (int i = 0; i < mapHeight; i++) {
+			//Debug.Log ("### GetCell Idx = " + new Vector3(0, i, i));
+			Cell cell = GetCell (new Vector3(0, i, i));
+			if(cell.blockType != BlockType.NONE)
+				yield return StartCoroutine(SlideFill (cell));
+		}
+	}
+
+	IEnumerator SlideFill (Cell srcCell)
 	{
 		List<Cell> list_DownPath = new List<Cell> ();
 		FindLoopDownPath (list_DownPath, srcCell);
@@ -513,11 +632,12 @@ public class GameManager : Singleton<GameManager> {
 			MoveCell (list_DownPath [i], list_DownPath [i+1]);
 			yield return new WaitForSeconds (moveTime);
 		}
-			
+
 		if(list_LoopCell.Contains(list_DownPath[list_DownPath.Count-1]) == false)
 			list_LoopCell.Add (list_DownPath[list_DownPath.Count-1]);
 	}
-		
+
+	//새로운 블록을 공급합니다.
 	IEnumerator SupplyNewBlock ()
 	{
 		if (list_BurstCell.Count <= 0)
@@ -545,25 +665,24 @@ public class GameManager : Singleton<GameManager> {
 					if(cell.img_Block == null)
 						cell.img_Block = GameObject.Instantiate (blockPrefab, cell.trBlock.transform).GetComponent<Image> ();
 
-					cell.img_Block.transform.position = new Vector3 (Screen.width * 0.5f, Screen.height * 0.95f, 0f);
-					BlockType getBlockType = GetBlockRandomType ();
+					cell.img_Block.transform.position = new Vector3 (0f, 2.5f, 0f);
+					BlockType getBlockType = GetRandomBlockType ();
 					cell.InitBlockHP (getBlockType);
 					cell.SetBlockType (getBlockType);
-					yield return new WaitForSeconds (moveTime);
+					yield return new WaitForSeconds (supplyTime);
 
 					foreach (Cell c in list_SupplyRoot) {
 						cell.img_Block.transform.position = c.transform.position;
-						yield return new WaitForSeconds (moveTime);
+						yield return new WaitForSeconds (supplyTime);
 					}
 					list_LoopCell.Add(list_SupplyRoot[list_SupplyRoot.Count-1]);
 					break;
 				}
 			}
-			yield return new WaitForSeconds (moveTime);
 		}
-		yield return null;
 	}
 
+	//6시 방향으로 비어있는 공간 탐색.
 	void FindLoopOnlyDownPath (List<Cell> pathList, Cell startCell)
 	{
 		Cell checkCell = GetSixDirectionCell (startCell);
@@ -575,6 +694,7 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
+	//아래 3방향으로 비어있는 공간 탐색.
 	void FindLoopDownPath (List<Cell> pathList, Cell startCell)
 	{
 		Cell checkCell = GetSixDirectionCell (startCell);
@@ -603,7 +723,8 @@ public class GameManager : Singleton<GameManager> {
 		}
 	}
 
-	IEnumerator DealDamageBlock ()
+	//체력이 2 이상인 블록 데미지 처리.
+	void DealDamageBlock ()
 	{	
 		foreach (Cell cell in list_BurstCell) 
 		{
@@ -633,47 +754,75 @@ public class GameManager : Singleton<GameManager> {
 			}
 		}
 
-		yield return null;
-
 		foreach (Cell damage in list_DealDamageCell) {
-			Debug.Log ("DAMAGE Idx = " + damage.posIdx);
 			damage.DealDamageHP ();
 			if (damage.HP <= 0) {
+				missionCount = Mathf.Max(0, missionCount - 1);
+				ComputeBlockScore (damage.blockType);
 				specialBlockCount = specialBlockCount > 0 ? specialBlockCount - 1 : 0;
 				damage.blockType = BlockType.NONE;
 				damage.HP = 1;
+
+				if(list_BurstCell.Contains(damage) == false)
+					list_BurstCell.Add (damage);
+
 				if(damage.img_Block != null)
 					GameObject.Destroy (damage.img_Block.gameObject);
 			} else {
 				damage.SetBlockType (damage.blockType);	
 			}
 		}
-
 		list_DealDamageCell.Clear ();
 	}
 
+	void ComputeBlockScore (BlockType _blockType)
+	{
+		score += _blockType < BlockType.TOP ? IngameDefine.normalBlockScore : IngameDefine.specialBlockScore;
+	}
+
+	void refreshScoreUI ()
+	{
+		txt_Score.text = string.Format("{0:#,###; #,##;0}", score);
+	}
+
+	void refreshMoveCountUI ()
+	{
+		txt_Move.text = moveCount.ToString();
+	}
+
+	void refreshMissionCountUI ()
+	{
+		txt_Mission.text = missionCount.ToString();
+	}
+
+	public void EmptyComment ()
+	{
+		txt_Comment.text = "게임중...";
+	}
+
+	//블록매칭 후 버스트 루프 루틴.
 	IEnumerator BurstLoopRoutine ()
 	{
-		touchEnable = false;
-		yield return new WaitForSeconds (0.5f);
-
+		yield return new WaitForSeconds (burstDelayTime);
+		touchEnable = false;	
 		foreach (Cell cell in list_BurstCell) {
-			Debug.Log ("@@@ Burst PosIdx = " + cell.posIdx + " ,,, BlockType = " + cell.blockType);
+			ComputeBlockScore (cell.blockType);
 			cell.blockType = BlockType.NONE;
 			if(cell.img_Block != null)
 				GameObject.Destroy (cell.img_Block.gameObject);
 		}
-		yield return new WaitForSeconds (0.5f);
-		yield return StartCoroutine (DealDamageBlock ());
-		yield return new WaitForSeconds (0.5f);
-		yield return StartCoroutine (SlideAllOnlyDown ());
+		yield return new WaitForSeconds (burstDelayTime);
+		DealDamageBlock ();
+		refreshScoreUI ();
+		refreshMissionCountUI ();
+		yield return new WaitForSeconds (0.2f);
 		yield return StartCoroutine (SlideAllDown ());
+		yield return StartCoroutine (SlideAllFill ());
 		yield return StartCoroutine (SupplyNewBlock ());
 
 		list_BurstCell.Clear ();
 
 		foreach (Cell cell in list_LoopCell) {
-			//Debug.Log ("### LoopCheck Idx = " + cell.posIdx);
 			GetListBurstCellAxisX (cell);
 			GetListBurstCellAxisY (cell);
 			GetListBurstCellAxisZ (cell);
@@ -684,15 +833,46 @@ public class GameManager : Singleton<GameManager> {
 		if (list_BurstCell.Count > 0) {
 			yield return StartCoroutine (BurstLoopRoutine ());
 		} else {
-			touchEnable = true;
+			touchEnable = CheckGameState () == GameState.PLAY ? true : false;
+			if (gameState >= GameState.CLEAR)
+				yield break;
+
+			if (CheckPossibleBoard () == false) {
+				yield return StartCoroutine(DelaySuffleBoard());
+			}
 		}
 	}
 
-	IEnumerator ResetCell (Cell srcCell, Cell targetCell)
+	//딜레이 후 보드를 섞어줍니다. (타이머용)
+	IEnumerator DelaySuffleBoard ()
 	{
-		yield return new WaitForSeconds (0.5f);
-		SwapCell (srcCell, targetCell);
-		touchEnable = true;
+		txt_SuffleTimer.gameObject.SetActive (true);
+		txt_SuffleTimer.text = "3초";
+		yield return new WaitForSeconds (1f);
+		txt_SuffleTimer.text = "2초";
+		yield return new WaitForSeconds (1f);
+		txt_SuffleTimer.text = "1초";
+		yield return new WaitForSeconds (1f);
+		txt_SuffleTimer.gameObject.SetActive (false);
+		ShuffleBoard (mapHeight, mapRow);
+	}
+
+	GameState CheckGameState ()
+	{
+		if (missionCount <= 0) {
+			gameState = GameState.CLEAR;
+			btn_Restart.SetActive (true);
+			txt_Comment.text = "!!! GAME CLEAR !!!";
+			txt_Comment.transform.localScale = new Vector3 (2f, 2f, 2f);
+		} else if (moveCount <= 0) {
+			gameState = GameState.FAIL;
+			btn_Restart.SetActive (true);
+			txt_Comment.text = "GAME FAIL ...";
+		}
+		else
+			gameState = GameState.PLAY;
+
+		return gameState;
 	}
 
 	//셀 기준 X축으로 터질 수 있는 블록확보.
@@ -820,6 +1000,13 @@ public class GameManager : Singleton<GameManager> {
 			}
 		}
 	}
+
+	#region Button Clicked
+	public void Clicked_Restart ()
+	{
+		SceneManager.LoadScene ("Main");
+	}
+	#endregion Button Clicked
 }
 
 
