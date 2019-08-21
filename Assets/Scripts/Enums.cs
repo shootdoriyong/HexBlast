@@ -29,7 +29,8 @@ public enum TouchState {
 }
 
 public enum GameState {
-	START,
+	READY,
+	PLAY,
 	CLEAR,
-	GAMEOVER,
+	FAIL,
 }
